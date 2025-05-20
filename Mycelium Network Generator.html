@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mycelium Network Generator</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+      color: white;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #controls {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(20, 20, 20, 0.85);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(6px);
+      width: 260px;
+    }
+
+    #controls h2 {
+      font-size: 16px;
+      margin: 0 0 10px 0;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+
+    .control-group {
+      margin-bottom: 15px;
+    }
+
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: #ccc;
+    }
+
+    input[type=range], input[type=number] {
+      width: 100%;
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 24px);
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid white;
+      transition: transform 0.2s;
+    }
+
+    .swatch:hover {
+      transform: scale(1.1);
+    }
+
+    #save {
+      width: 100%;
+      margin-top: 10px;
+      padding: 8px;
+      font-size: 14px;
+      border: none;
+      border-radius: 6px;
+      background-color: #3a3a3a;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    #save:hover {
+      background-color: #555;
+    }
+
+    .tooltip {
+      font-size: 12px;
+      color: #999;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+<!-- Controls Panel -->
+<div id="controls">
+  <h2>Mycelium Controls</h2>
+
+  <div class="control-group">
+    <label for="depth">Depth: <span id="depth-value">6</span></label>
+    <input type="range" id="depth" min="1" max="10" value="6">
+    <div class="tooltip">How far each strand grows</div>
+  </div>
+
+  <div class="control-group">
+    <label for="strands">Strands: <span id="strands-value">12</span></label>
+    <input type="range" id="strands" min="1" max="50" value="12">
+    <div class="tooltip">How many strands to generate</div>
+  </div>
+
+  <div class="control-group">
+    <label for="thickness">Line Thickness: <span id="thickness-value">1.2</span></label>
+    <input type="range" id="thickness" min="0.5" max="5" step="0.1" value="1.2">
+    <div class="tooltip">Visual width of each strand</div>
+  </div>
+
+  <div class="control-group">
+    <label for="decay">Decay Factor: <span id="decay-value">0.15</span></label>
+    <input type="range" id="decay" min="0.05" max="0.5" step="0.01" value="0.15">
+    <div class="tooltip">Transparency of the lines (fade effect)</div>
+  </div>
+
+  <div class="control-group">
+    <label for="animate">
+      <input type="checkbox" id="animate" checked>
+      Animate Growth
+    </label>
+    <div class="tooltip">Enable/disable animation for growing mycelium</div>
+  </div>
+
+  <div class="control-group">
+    <label>Style:</label>
+    <div class="swatches">
+      <div class="swatch" data-style="classic" style="background: #fff;"></div>
+      <div class="swatch" data-style="forest" style="background: #228B22;"></div>
+      <div class="swatch" data-style="earth" style="background: #996633;"></div>
+      <div class="swatch" data-style="sunlight" style="background: #ffcc33;"></div>
+      <div class="swatch" data-style="moss" style="background: #7BA05B;"></div>
+      <div class="swatch" data-style="berry" style="background: #b30059;"></div>
+      <div class="swatch" data-style="sky" style="background: #3399ff;"></div>
+      <div class="swatch" data-style="ash" style="background: #a8a8a8;"></div>
+      <div class="swatch" data-style="blush" style="background: #ff9999;"></div>
+      <div class="swatch" data-style="aqua" style="background: #00e6e6;"></div>
+    </div>
+    <div class="tooltip">Choose the color theme for the network</div>
+  </div>
+
+  <button id="save">Save Image</button>
+</div>
+<canvas id="mycelium"></canvas>
+
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('mycelium');
+  const ctx = canvas.getContext('2d');
+
+  const depthSlider = document.getElementById('depth');
+  const strandsSlider = document.getElementById('strands');
+  const thicknessSlider = document.getElementById('thickness');
+  const decaySlider = document.getElementById('decay');
+  const animateCheckbox = document.getElementById('animate');
+  const saveButton = document.getElementById('save');
+  const swatches = document.querySelectorAll('.swatch');
+
+  const depthValue = document.getElementById('depth-value');
+  const strandsValue = document.getElementById('strands-value');
+  const thicknessValue = document.getElementById('thickness-value');
+  const decayValue = document.getElementById('decay-value');
+
+  let currentStyle = 'classic';
+  let animationFrame;
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    generateMycelium();
+  });
+  resizeCanvas();
+
+  swatches.forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      currentStyle = swatch.dataset.style;
+      updateBackground();
+      generateMycelium();
+    });
+  });
+
+  function updateBackground() {
+    const backgrounds = {
+      classic: '#0f0f0f', forest: '#001f0f', earth: '#1f1208', sunlight: '#2b1e04',
+      moss: '#1c2a1c', berry: '#1a0014', sky: '#001133', ash: '#222', blush: '#330000', aqua: '#002929'
+    };
+    document.body.style.backgroundColor = backgrounds[currentStyle] || '#0f0f0f';
+  }
+
+  function organicOffset(strength = 0.5) {
+    return (Math.random() - 0.5) * strength * Math.PI;
+  }
+
+  class Branch {
+    constructor(x, y, angle, depth) {
+      this.x = x;
+      this.y = y;
+      this.angle = angle;
+      this.depth = depth;
+    }
+
+    grow() {
+      if (this.depth <= 0) return;
+      const length = Math.random() * 60 + 40;
+      const noiseAngle = this.angle + organicOffset(0.8);
+      const newX = this.x + Math.cos(noiseAngle) * length;
+      const newY = this.y + Math.sin(noiseAngle) * length;
+
+      drawLine(this.x, this.y, newX, newY);
+
+      const branchCount = Math.floor(Math.random() * 3) + 1;
+      for (let i = 0; i < branchCount; i++) {
+        const offset = organicOffset(1.0);
+        const newAngle = noiseAngle + offset;
+        const newBranch = new Branch(newX, newY, newAngle, this.depth - 1);
+        if (animateCheckbox.checked) {
+          setTimeout(() => newBranch.grow(), 20);
+        } else {
+          newBranch.grow();
+        }
+      }
+    }
+  }
+
+  function drawLine(x1, y1, x2, y2) {
+    const decay = parseFloat(decaySlider.value);
+    const thickness = parseFloat(thicknessSlider.value);
+
+    const colorMap = {
+      classic: `rgba(255, 255, 255, ${decay})`,
+      forest: `rgba(34, 139, 34, ${decay})`,
+      earth: `rgba(204, 153, 102, ${decay})`,
+      sunlight: `rgba(255, 204, 51, ${decay})`,
+      moss: `rgba(123, 160, 91, ${decay})`,
+      berry: `rgba(179, 0, 89, ${decay})`,
+      sky: `rgba(51, 153, 255, ${decay})`,
+      ash: `rgba(168, 168, 168, ${decay})`,
+      blush: `rgba(255, 153, 153, ${decay})`,
+      aqua: `rgba(0, 230, 230, ${decay})`
+    };
+    ctx.strokeStyle = colorMap[currentStyle] || `rgba(255,255,255,${decay})`;
+    ctx.lineWidth = thickness;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  function generateMycelium() {
+    cancelAnimationFrame(animationFrame);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const strands = parseInt(strandsSlider.value);
+    const depth = parseInt(depthSlider.value);
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    for (let i = 0; i < strands; i++) {
+      const randomAngle = Math.random() * Math.PI * 2;
+      new Branch(centerX, centerY, randomAngle, depth).grow();
+    }
+  }
+
+  saveButton.addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = 'mycelium.png';
+    link.href = canvas.toDataURL();
+    link.click();
+  });
+
+  [depthSlider, strandsSlider, thicknessSlider, decaySlider].forEach(slider => {
+    slider.addEventListener('input', () => {
+      depthValue.textContent = depthSlider.value;
+      strandsValue.textContent = strandsSlider.value;
+      thicknessValue.textContent = thicknessSlider.value;
+      decayValue.textContent = decaySlider.value;
+      generateMycelium();
+    });
+  });
+
+  animateCheckbox.addEventListener('change', generateMycelium);
+
+  updateBackground();
+  generateMycelium();
+});
+</script>
+</body>
+</html>
